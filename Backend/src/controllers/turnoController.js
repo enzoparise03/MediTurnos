@@ -47,7 +47,7 @@ const obtenerTurnos = async (req, res) => {
     try {
         // En vez de tener solo el find()...
         const misTurnos = await Turno.find({ usuarioId: req.usuario.id }) // O como lo tengas filtrado
-            .populate('profesional', 'nombre'); // <--- ⚠️ ¡AGREGÁ ESTA LÍNEA ACÁ!
+            .populate('profesional', 'nombre'); 
 
         res.status(200).json(misTurnos);
     } catch (error) {
