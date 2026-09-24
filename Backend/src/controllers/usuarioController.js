@@ -6,10 +6,10 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
 //Funcion que genera el hash de una contraseña
-function hashPassword(password, salt){
+function hashPassword(password, salt) {
     const hash = crypto.createHmac('sha256', salt)
-    .update(password)
-    .digest('hex');
+        .update(password)
+        .digest('hex');
     return hash;
 }
 
@@ -18,11 +18,11 @@ function hashPassword(password, salt){
 const registrarUsuario = async (req, res) => {
     try {
         //extraemos lo que nos manda el usuario
-        const { nombre, email, contrasena, rol} = req.body;
+        const { nombre, email, contrasena } = req.body;
         //verificamos si el mail existe en la bd
-        const usuarioExistente = await Usuario.findOne({ email: email});
-        if (usuarioExistente){
-            return res.status(400).json({ mensaje: 'Esta email ya esta registrado'});
+        const usuarioExistente = await Usuario.findOne({ email: email });
+        if (usuarioExistente) {
+            return res.status(400).json({ mensaje: 'Esta email ya esta registrado' });
         }
 
         // Generamos un salt aleatorio
@@ -35,9 +35,8 @@ const registrarUsuario = async (req, res) => {
         const nuevoUsuario = await Usuario.create({
             nombre: nombre,
             email: email,
-            contrasena: contrasenaHasheada, 
-            salt: salt,                     
-            rol: rol || 'cliente' // Si no manda rol, por defecto es cliente
+            contrasena: contrasenaHasheada,
+            salt: salt,
 
         });
 
@@ -53,10 +52,19 @@ const registrarUsuario = async (req, res) => {
         });
         //si hay error: 
     } catch (error) {
-        res.status(500).json({mensaje: 'Error al registrar al usuario', error: error.message});
+        res.status(500).json({ mensaje: 'Error al registrar al usuario', error: error.message });
     }
 };
 
+
+//Funcion para loguear al usuario
+// Opciones de la cookie de sesión: en producción solo viaja por HTTPS.
+// Se define afuera de las funciones para que login y logout usen las mismas.
+const opcionesCookie = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax'
+};
 
 //Funcion para loguear al usuario
 const loginUsuario = async (req, res) => {
@@ -64,12 +72,12 @@ const loginUsuario = async (req, res) => {
         //extraemos el email y la contraseña plana que manda el usuario
         const { email, contrasena } = req.body;
         //buscamos al usuario en la bd
-        const usuario = await Usuario.findOne({ email: email});
+        const usuario = await Usuario.findOne({ email: email });
         //si el usuario no existe:
         if (!usuario) {
-            return res.status(404).json({ mensaje: 'Usuario no encontrado'});
+            return res.status(404).json({ mensaje: 'Usuario no encontrado' });
         }
-        
+
         //verificamos la contraseña y la mezclamos con el "salt" que guardamos previamente en mongo
         const hashIngresado = hashPassword(contrasena, usuario.salt);
 
@@ -78,20 +86,17 @@ const loginUsuario = async (req, res) => {
             return res.status(401).json({ mensaje: 'Contraseña incorrecta' });
         }
 
-        //si todo esta correco se crea el JWT
+        //si todo esta correcto se crea el JWT
         const datosDelToken = {
             id: usuario._id,
             rol: usuario.rol
         };
 
         //generamos el jwt y le damos una durabilidad de sesion de 1h
-        const token = jwt.sign(datosDelToken, process.env.JWT_SECRET, { expiresIn: '1h'});
+        const token = jwt.sign(datosDelToken, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        res.cookie('token', token,{
-            httpOnly: true,
-            secure: false,
-            maxAge: 3600000
-        });
+        //guardamos el token en la cookie con las opciones de arriba + 1h de duración
+        res.cookie('token', token, { ...opcionesCookie, maxAge: 3600000 });
 
         // Devolvemos el token al cliente
         res.status(200).json({
@@ -99,17 +104,15 @@ const loginUsuario = async (req, res) => {
             token: token
         });
     } catch (error) {
-        res.status(500).json({ mensaje: 'Error al inciar sesion', error: error.message});
+        res.status(500).json({ mensaje: 'Error al iniciar sesion', error: error.message });
     }
 };
 
 const logoutUsuario = (req, res) => {
-    res.clearCookie('token', {
-        httpOnly: true,
-        secure: false
-    });
+    //borramos la cookie usando las mismas opciones con las que se creó
+    res.clearCookie('token', opcionesCookie);
 
-    res.status(200).json({ mensaje: 'Sesion cerrada correctamente.'});
+    res.status(200).json({ mensaje: 'Sesion cerrada correctamente.' });
 };
 //exportamos la funciones
 module.exports = {
